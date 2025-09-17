@@ -1,0 +1,192 @@
+import pygame, sys
+
+pygame.init()
+
+# --- CONFIG ---
+WIDTH, HEIGHT = 800, 600
+FPS = 60
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+
+PADDLE_WIDTH, PADDLE_HEIGHT = 10, 100
+BALL_SIZE = 20
+WIN_SCORE = 3
+MAX_LEVELS = 5
+
+font_big = pygame.font.Font(None, 80)
+font_med = pygame.font.Font(None, 50)
+font_small = pygame.font.Font(None, 36)
+
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("IJAN PINGPONG")
+clock = pygame.time.Clock()
+
+# --- GAME STATES ---
+STATE_MENU = "menu"
+STATE_LEVEL = "level"
+STATE_PLAY = "play"
+STATE_WIN = "win"
+
+game_state = STATE_MENU
+selected_mode = "pc"
+current_level = 1
+current_mode = 1
+score_left = 0
+score_right = 0
+
+# --- OBJECTS ---
+left_paddle = pygame.Rect(30, HEIGHT//2 - PADDLE_HEIGHT//2, PADDLE_WIDTH, PADDLE_HEIGHT)
+right_paddle = pygame.Rect(WIDTH - 40, HEIGHT//2 - PADDLE_HEIGHT//2, PADDLE_WIDTH, PADDLE_HEIGHT)
+ball = pygame.Rect(WIDTH//2 - BALL_SIZE//2, HEIGHT//2 - BALL_SIZE//2, BALL_SIZE, BALL_SIZE)
+
+ball_speed_x, ball_speed_y = 5, 5
+paddle_speed = 7
+
+# --- FUNCTIONS ---
+def reset_positions():
+    global left_paddle, right_paddle, ball, ball_speed_x, ball_speed_y
+    left_paddle.y = HEIGHT//2 - PADDLE_HEIGHT//2
+    right_paddle.y = HEIGHT//2 - PADDLE_HEIGHT//2
+    ball.center = (WIDTH//2, HEIGHT//2)
+    ball_speed_x = 5 * (1 if current_level % 2 == 0 else -1)
+    ball_speed_y = 5
+
+def get_ball_speed():
+    base = 4 + current_level  # bola makin laju setiap level
+    if current_mode == 1:
+        return base
+    elif current_mode == 2:
+        return base * 2
+    elif current_mode == 3:
+        return base * 4
+
+def draw_text(text, font, color, x, y, center=True):
+    label = font.render(text, True, color)
+    rect = label.get_rect()
+    if center: rect.center = (x, y)
+    else: rect.topleft = (x, y)
+    screen.blit(label, rect)
+
+def ai_move():
+    ai_speed = paddle_speed + current_level
+    if right_paddle.centery < ball.centery and right_paddle.bottom < HEIGHT:
+        right_paddle.y += ai_speed
+    if right_paddle.centery > ball.centery and right_paddle.top > 0:
+        right_paddle.y -= ai_speed
+
+def check_mode_progress():
+    global current_mode, score_left, score_right, game_state, current_level
+    if score_left >= WIN_SCORE:
+        if current_mode < 3:
+            current_mode += 1
+            score_left, score_right = 0, 0
+            reset_positions()
+        else:
+            # level complete
+            current_mode = 1
+            score_left, score_right = 0, 0
+            if current_level < MAX_LEVELS:
+                game_state = STATE_WIN
+            else:
+                game_state = STATE_MENU
+                current_level = 1
+
+# --- MAIN LOOP ---
+running = True
+while running:
+    screen.fill(BLACK)
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    # --- MENU ---
+    if game_state == STATE_MENU:
+        draw_text("IJAN PINGPONG", font_big, WHITE, WIDTH//2, 100)
+        draw_text("Press 1 for PC Mode", font_med, WHITE, WIDTH//2, 250)
+        draw_text("Press 2 for Mobile Mode", font_med, WHITE, WIDTH//2, 320)
+        draw_text("Press Q to Quit", font_small, WHITE, WIDTH//2, 400)
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_1]:
+            selected_mode = "pc"
+            game_state = STATE_LEVEL
+        if keys[pygame.K_2]:
+            selected_mode = "mobile"
+            game_state = STATE_LEVEL
+        if keys[pygame.K_q]:
+            running = False
+
+    # --- LEVEL SELECT ---
+    elif game_state == STATE_LEVEL:
+        draw_text(f"LEVEL {current_level}", font_big, WHITE, WIDTH//2, HEIGHT//2 - 50)
+        draw_text("Press SPACE to Start", font_med, WHITE, WIDTH//2, HEIGHT//2 + 50)
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_SPACE]:
+            reset_positions()
+            game_state = STATE_PLAY
+
+    # --- PLAY ---
+    elif game_state == STATE_PLAY:
+        # controls
+        if selected_mode == "pc":
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_w] and left_paddle.top > 0:
+                left_paddle.y -= paddle_speed
+            if keys[pygame.K_s] and left_paddle.bottom < HEIGHT:
+                left_paddle.y += paddle_speed
+        else:
+            # simple mobile controls (hold arrows)
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_UP] and left_paddle.top > 0:
+                left_paddle.y -= paddle_speed
+            if keys[pygame.K_DOWN] and left_paddle.bottom < HEIGHT:
+                left_paddle.y += paddle_speed
+
+        # AI move
+        ai_move()
+
+        # ball move
+        ball.x += ball_speed_x
+        ball.y += ball_speed_y
+
+        # collisions
+        if ball.top <= 0 or ball.bottom >= HEIGHT:
+            ball_speed_y *= -1
+        if ball.colliderect(left_paddle) or ball.colliderect(right_paddle):
+            ball_speed_x *= -1
+
+        # score
+        if ball.left <= 0:
+            score_right += 1
+            reset_positions()
+        if ball.right >= WIDTH:
+            score_left += 1
+            reset_positions()
+
+        check_mode_progress()
+
+        # draw
+        pygame.draw.rect(screen, WHITE, left_paddle)
+        pygame.draw.rect(screen, WHITE, right_paddle)
+        pygame.draw.ellipse(screen, WHITE, ball)
+        pygame.draw.aaline(screen, WHITE, (WIDTH//2, 0), (WIDTH//2, HEIGHT))
+        draw_text(f"Level {current_level} - Mode {current_mode}", font_small, WHITE, WIDTH//2, 30)
+        draw_text(f"{score_left}   {score_right}", font_big, WHITE, WIDTH//2, 100)
+
+    # --- WIN ---
+    elif game_state == STATE_WIN:
+        draw_text(f"Level {current_level} Complete!", font_big, WHITE, WIDTH//2, HEIGHT//2 - 50)
+        draw_text("Press N for Next Level", font_med, WHITE, WIDTH//2, HEIGHT//2 + 50)
+        draw_text("Press Q for Quit", font_small, WHITE, WIDTH//2, HEIGHT//2 + 120)
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_n]:
+            current_level += 1
+            game_state = STATE_LEVEL
+        if keys[pygame.K_q]:
+            game_state = STATE_MENU
+            current_level = 1
+
+    pygame.display.flip()
+    clock.tick(FPS)
+
+pygame.quit()
+sys.exit()
