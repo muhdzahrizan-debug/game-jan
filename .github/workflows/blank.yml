@@ -1,4 +1,4 @@
-import pygame, sys
+import pygame, sys, math
 
 pygame.init()
 
@@ -7,13 +7,16 @@ WIDTH, HEIGHT = 800, 600
 FPS = 60
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
+CYAN = (0, 255, 255)
+PINK = (255, 0, 128)
+PURPLE = (180, 0, 255)
 
 PADDLE_WIDTH, PADDLE_HEIGHT = 10, 100
 BALL_SIZE = 20
 WIN_SCORE = 3
 MAX_LEVELS = 5
 
-font_big = pygame.font.Font(None, 80)
+font_big = pygame.font.Font(None, 100)
 font_med = pygame.font.Font(None, 50)
 font_small = pygame.font.Font(None, 36)
 
@@ -52,15 +55,19 @@ def reset_positions():
     ball_speed_y = 5
 
 def get_ball_speed():
-    base = 4 + current_level  # bola makin laju setiap level
-    if current_mode == 1:
-        return base
-    elif current_mode == 2:
-        return base * 2
-    elif current_mode == 3:
-        return base * 4
+    base = 4 + current_level
+    if current_mode == 1: return base
+    elif current_mode == 2: return base * 2
+    elif current_mode == 3: return base * 4
 
-def draw_text(text, font, color, x, y, center=True):
+def draw_text(text, font, color, x, y, center=True, glow=True):
+    if glow:
+        for offset in range(6, 0, -2):
+            glow_text = font.render(text, True, PURPLE)
+            rect = glow_text.get_rect()
+            if center: rect.center = (x, y)
+            else: rect.topleft = (x, y)
+            screen.blit(glow_text, rect.move(offset, offset))
     label = font.render(text, True, color)
     rect = label.get_rect()
     if center: rect.center = (x, y)
@@ -82,7 +89,6 @@ def check_mode_progress():
             score_left, score_right = 0, 0
             reset_positions()
         else:
-            # level complete
             current_mode = 1
             score_left, score_right = 0, 0
             if current_level < MAX_LEVELS:
@@ -90,6 +96,11 @@ def check_mode_progress():
             else:
                 game_state = STATE_MENU
                 current_level = 1
+
+def draw_neon_background():
+    for i in range(HEIGHT):
+        color = (int(20 + 30*i/HEIGHT), int(0 + 50*i/HEIGHT), int(50 + 100*i/HEIGHT))
+        pygame.draw.line(screen, color, (0, i), (WIDTH, i))
 
 # --- MAIN LOOP ---
 running = True
@@ -101,10 +112,12 @@ while running:
 
     # --- MENU ---
     if game_state == STATE_MENU:
-        draw_text("IJAN PINGPONG", font_big, WHITE, WIDTH//2, 100)
-        draw_text("Press 1 for PC Mode", font_med, WHITE, WIDTH//2, 250)
-        draw_text("Press 2 for Mobile Mode", font_med, WHITE, WIDTH//2, 320)
-        draw_text("Press Q to Quit", font_small, WHITE, WIDTH//2, 400)
+        draw_neon_background()
+        draw_text("IJAN PINGPONG", font_big, CYAN, WIDTH//2, 120)
+        draw_text("Press 1 for PC Mode", font_med, PINK, WIDTH//2, 300)
+        draw_text("Press 2 for Mobile Mode", font_med, CYAN, WIDTH//2, 360)
+        draw_text("Press Q to Quit", font_small, WHITE, WIDTH//2, 430, glow=False)
+
         keys = pygame.key.get_pressed()
         if keys[pygame.K_1]:
             selected_mode = "pc"
@@ -117,8 +130,9 @@ while running:
 
     # --- LEVEL SELECT ---
     elif game_state == STATE_LEVEL:
-        draw_text(f"LEVEL {current_level}", font_big, WHITE, WIDTH//2, HEIGHT//2 - 50)
-        draw_text("Press SPACE to Start", font_med, WHITE, WIDTH//2, HEIGHT//2 + 50)
+        draw_neon_background()
+        draw_text(f"LEVEL {current_level}", font_big, CYAN, WIDTH//2, HEIGHT//2 - 50)
+        draw_text("Press SPACE to Start", font_med, PINK, WIDTH//2, HEIGHT//2 + 50)
         keys = pygame.key.get_pressed()
         if keys[pygame.K_SPACE]:
             reset_positions()
@@ -126,7 +140,6 @@ while running:
 
     # --- PLAY ---
     elif game_state == STATE_PLAY:
-        # controls
         if selected_mode == "pc":
             keys = pygame.key.get_pressed()
             if keys[pygame.K_w] and left_paddle.top > 0:
@@ -134,27 +147,19 @@ while running:
             if keys[pygame.K_s] and left_paddle.bottom < HEIGHT:
                 left_paddle.y += paddle_speed
         else:
-            # simple mobile controls (hold arrows)
             keys = pygame.key.get_pressed()
             if keys[pygame.K_UP] and left_paddle.top > 0:
                 left_paddle.y -= paddle_speed
             if keys[pygame.K_DOWN] and left_paddle.bottom < HEIGHT:
                 left_paddle.y += paddle_speed
 
-        # AI move
         ai_move()
-
-        # ball move
         ball.x += ball_speed_x
         ball.y += ball_speed_y
 
-        # collisions
-        if ball.top <= 0 or ball.bottom >= HEIGHT:
-            ball_speed_y *= -1
-        if ball.colliderect(left_paddle) or ball.colliderect(right_paddle):
-            ball_speed_x *= -1
+        if ball.top <= 0 or ball.bottom >= HEIGHT: ball_speed_y *= -1
+        if ball.colliderect(left_paddle) or ball.colliderect(right_paddle): ball_speed_x *= -1
 
-        # score
         if ball.left <= 0:
             score_right += 1
             reset_positions()
@@ -164,19 +169,19 @@ while running:
 
         check_mode_progress()
 
-        # draw
-        pygame.draw.rect(screen, WHITE, left_paddle)
-        pygame.draw.rect(screen, WHITE, right_paddle)
+        pygame.draw.rect(screen, CYAN, left_paddle)
+        pygame.draw.rect(screen, PINK, right_paddle)
         pygame.draw.ellipse(screen, WHITE, ball)
         pygame.draw.aaline(screen, WHITE, (WIDTH//2, 0), (WIDTH//2, HEIGHT))
-        draw_text(f"Level {current_level} - Mode {current_mode}", font_small, WHITE, WIDTH//2, 30)
-        draw_text(f"{score_left}   {score_right}", font_big, WHITE, WIDTH//2, 100)
+        draw_text(f"Level {current_level} - Mode {current_mode}", font_small, CYAN, WIDTH//2, 30, glow=False)
+        draw_text(f"{score_left}   {score_right}", font_big, WHITE, WIDTH//2, 100, glow=False)
 
     # --- WIN ---
     elif game_state == STATE_WIN:
-        draw_text(f"Level {current_level} Complete!", font_big, WHITE, WIDTH//2, HEIGHT//2 - 50)
-        draw_text("Press N for Next Level", font_med, WHITE, WIDTH//2, HEIGHT//2 + 50)
-        draw_text("Press Q for Quit", font_small, WHITE, WIDTH//2, HEIGHT//2 + 120)
+        draw_neon_background()
+        draw_text(f"Level {current_level} Complete!", font_big, CYAN, WIDTH//2, HEIGHT//2 - 50)
+        draw_text("Press N for Next Level", font_med, PINK, WIDTH//2, HEIGHT//2 + 50)
+        draw_text("Press Q for Quit", font_small, WHITE, WIDTH//2, HEIGHT//2 + 120, glow=False)
         keys = pygame.key.get_pressed()
         if keys[pygame.K_n]:
             current_level += 1
